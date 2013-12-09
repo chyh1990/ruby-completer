@@ -17,6 +17,8 @@ class Test1
 		puts "Hello"
 		l2 = rand
 	end
+	def Test1.m1
+	end
 end
 
 module TM1

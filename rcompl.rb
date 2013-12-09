@@ -35,8 +35,8 @@ class FuncType < Struct.new(:ret, :args)
 	end
 end
 
-$UNITID = 0
 class TypeExtractor
+	@@unitid = 0
 	def initialize(src, base_type_unit = [])
 		#type, childs, parent, name, varlist
 		@scope = Scope.new :module, {}, nil, "___GLBOAL__", {}, nil
@@ -44,20 +44,18 @@ class TypeExtractor
 		@src = src.split(/\r?\n/)
 		@base_type_unit = base_type_unit
 		@block_idx = 0
-		@unit_id = $UNITID
-		$UNITID += 1
+		@unit_id = @@unitid
+		@@unitid += 1
 		#merge
 		@scope.childs = {}
 		@base_type_unit.each {|b|
 			#XXX reopen class
-			@scope.childs.merge! b.scope.childs
-			@scope.varlist.merge! b.scope.varlist
+			@scope.childs.merge! b.toplevel.childs
+			@scope.varlist.merge! b.toplevel.varlist
 		}	
 	end
 
-	def scope
-		@scope
-	end
+	private
 
 	def get_block_name
 		@block_idx+=1
@@ -99,13 +97,14 @@ class TypeExtractor
 		nil
 	end
 
-	def toplevel
-		@scope.childs[:___BLOCK_0]
-	end
-	def find_top_level_by_name(name)
-		return nil unless name
-		return toplevel.childs[name]
-	end
+	#def toplevel
+	#	@scope.childs[:___BLOCK_0]
+	#end
+	#def find_top_level_by_name(name)
+	#	return nil unless name
+	#	return toplevel.childs[name]
+	#end
+
 	def find_method_in_class(klassScope, name)
 		fail "Not class" unless klassScope.type == :class
 		klassNode = klassScope.info
@@ -211,13 +210,18 @@ class TypeExtractor
 		newscope = false
 		fail "XX #{ast.line}" unless @curscope
 		case ast[0]
-		when :block, :class, :module, :defn
+		when :block, :class, :module, :defn, :defs
 			#p ast[0]
 			@curscope.childs = Hash.new if @curscope.childs.nil?
-			unless Symbol === ast[1]
-				sn = get_block_name
+			case ast[0]
+			when :defs
+				sn = ast[2]
 			else
-				sn = ast[1]
+				unless Symbol === ast[1]
+					sn = get_block_name
+				else
+					sn = ast[1]
+				end
 			end
 			#XXX reopen class
 			#nn = @curscope.childs[sn] || Scope.new(ast[0], {}, @curscope, 
@@ -230,6 +234,10 @@ class TypeExtractor
 			if ast[0] == :defn
 				#puts @src[ast.line-1]
 				@curscope.parent.varlist[ast[1]] = Func.new(ast[1], extractFuncType(ast), @curscope.parent)
+			#static methods
+			elsif ast[0] == :defs
+				#TODO dealwith receiver
+				@curscope.parent.varlist[ast[1]] = Func.new(ast[2], extractFuncType(ast), @curscope.parent)
 			elsif ast[0] == :class
 				if ast[1] == :Object
 					RootKlassNode.scope = @curscope
@@ -291,6 +299,13 @@ class TypeExtractor
 		@curscope = @curscope.parent if newscope
 	end
 
+	def _printme(n, ident)
+		puts "#{' ' * ident}#{n.name}(#{n.type rescue "*"}, #{n.info}): #{n.varlist.map{|k,v| "#{k.inspect}:#{(v.type rescue "*").inspect}"}.join(', ') }"
+		n.childs.each{|k,v| _printme(v, ident+2)} if n.childs
+	end
+
+	public
+
 	def doCompilationUnit(ast)
 		#fail "no global block" unless ast[0] == :block
 		if ast[0] == :block
@@ -305,11 +320,6 @@ class TypeExtractor
 	def inspect
 		@scope.inspect
 	end
-
-	def _printme(n, ident)
-		puts "#{' ' * ident}#{n.name}(#{n.type rescue "*"}, #{n.info}): #{n.varlist.map{|k,v| "#{k.inspect}:#{(v.type rescue "*").inspect}"}.join(', ') }"
-		n.childs.each{|k,v| _printme(v, ident+2)} if n.childs
-	end
 	def printme()
 		_printme(@scope, 0)
 	end
@@ -317,6 +327,10 @@ class TypeExtractor
 	def add_global(name, type)
 		ng = Var.new(name.to_sym, type.to_sym, @scope)
 		@scope.varlist[name] = ng
+	end
+
+	def toplevel
+		@scope
 	end
 end
 
