@@ -334,7 +334,11 @@ class TypeExtractor
 	end
 end
 
+BASE_CACHE_FILE='base.cache'
 def load_base
+	if File.readable? BASE_CACHE_FILE
+		return Marshal.load(File.read(BASE_CACHE_FILE))
+	end
 	puts "Loading base..."
 	extras = {
 		'$`' => "prematch",
@@ -361,6 +365,7 @@ def load_base
 	t = TypeExtractor.new c
 	t.doCompilationUnit(ast)
 	extras.each {|k,v| t.add_global k, v.class.name}
+	File.open(BASE_CACHE_FILE, 'w') {|io| io.write(Marshal.dump(t))}
 	return t
 end
 
