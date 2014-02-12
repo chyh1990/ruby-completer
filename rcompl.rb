@@ -334,7 +334,8 @@ class TypeExtractor
 	end
 end
 
-BASE_CACHE_FILE='base.cache'
+ROOT=File.dirname(File.expand_path(__FILE__))
+BASE_CACHE_FILE=File.join(ROOT, 'base.cache')
 def load_base
 	if File.readable? BASE_CACHE_FILE
 		return Marshal.load(File.read(BASE_CACHE_FILE))
@@ -359,7 +360,7 @@ def load_base
 		'$9' => "matched" ,
 	}
 
-	c = File.read("./base_types.rb")
+	c = File.read(File.join(ROOT, "base_types.rb"))
 	#c = File.read("./bt1.rb")
 	ast = RubyParser.new.parse c
 	t = TypeExtractor.new c
