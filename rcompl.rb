@@ -44,6 +44,7 @@ class TypeExtractor
 		@src = src.split(/\r?\n/)
 		@base_type_unit = base_type_unit
 		@block_idx = 0
+		@lineCache = []
 		@unit_id = @@unitid
 		@@unitid += 1
 		#merge
@@ -230,6 +231,7 @@ class TypeExtractor
 				       sn, {})
 			@curscope.childs[sn] = nn
 			@curscope = nn
+			@lineCache[ast.line] = @curscope
 			newscope = true
 			if ast[0] == :defn
 				#puts @src[ast.line-1]
@@ -332,6 +334,31 @@ class TypeExtractor
 	def toplevel
 		@scope
 	end
+
+	def getScopeByLine(line)
+		while line >= 0
+			return @lineCache[line] if @lineCache[line]
+			line -= 1
+		end
+		return nil
+	end
+
+	def getVarByLine(line, name)
+		s = getScopeByLine line
+		find_var_by_name name, s
+	end
+
+	def getClassMembers(name, scope = nil)
+		begin
+			return Kernel.const_get(name).methods if defined? name
+		rescue
+			#TODO do it recursively
+			scope = @scope unless scope
+			s = find_var_by_name name, scope
+			return nil unless s
+			s.scope.varlist.map{|k,v| v.name}
+		end
+	end
 end
 
 ROOT=File.dirname(File.expand_path(__FILE__))
@@ -383,4 +410,7 @@ t.doCompilationUnit(ast)
 #pp t
 
 t.printme
+
+#p t.getClassMembers(t.getVarByLine(15, :GV).type)
+#p t.getClassMembers(t.getVarByLine(29, :ttt).type)
 
